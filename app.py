@@ -2,12 +2,14 @@ from flask import Flask, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import Column, String, Integer, Float
 import os
+from flask_marshmallow import Marshmallow
 
 
 app = Flask(__name__)
 basedir = os.path.abspath(os.path.dirname(__file__))
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///" + os.path.join(basedir, "planets.db")
 db = SQLAlchemy(app)
+ma = Marshmallow(app)
 
 @app.route('/')
 def hello_world():
@@ -41,6 +43,48 @@ def url_variables(name:str, age:int):
     else:
         return jsonify(message="Welcome {}".format(name))
 
+@app.route("/planets", methods=["GET"])
+def planets():
+    planet_list = Planet.query.all()
+    result = planets_schema.dump(planet_list)
+    return jsonify(result)
+
+#flask db_create command will create the db
+@app.cli.command("db_create")
+def db_create():
+    db.create_all()
+    print("Database created")
+
+
+@app.cli.command("db_drop")
+def db_drop():
+    db.drop_all()
+    print("db dropped")
+
+@app.cli.command("db_seed")
+def db_seed():
+    mercury = Planet(planet_name="Mercury",
+                     planet_type="class D",
+                     home_star="sol",
+                     mass=3.258e23,
+                     radius=1516,
+                     distance=35.98e6)
+    venus = Planet(planet_name="Venus",
+                     planet_type="class K",
+                     home_star="sol",
+                     mass=4.867e24,
+                     radius=3760,
+                     distance=67.24e6)
+    db.session.add(mercury)
+    db.session.add(venus)
+    test_user = User(first_name="Willium",
+                     last_name="Herschel",
+                     email="test@test.com",
+                     password="p@ssword")
+    db.session.add(test_user)
+    db.session.commit( )
+    print("Database seeded")
+
 
 #db models
 class User(db.Model):
@@ -62,6 +106,21 @@ class Planet(db.Model):
     radius = Column(Float)
     distance = Column(Float)
 
+
+class UserSchema(ma.Schema):
+    class Meta:
+        fields = ("id", "first_name", "last_name", "email", "password")
+
+
+class PlanetSchema(ma.Schema):
+    class Meta:
+        fields = ("planet_id", "planet_name", "planet_type", "home_star", "mass", "radius", "distance")
+
+user_schema = UserSchema()
+users_schema = UserSchema(many=True)
+
+planet_schema = PlanetSchema()
+planets_schema = PlanetSchema(many=True)
 
 
 if __name__ == '__main__':
